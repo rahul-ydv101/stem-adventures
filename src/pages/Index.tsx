@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { SubjectCard } from "@/components/SubjectCard";
 import { AchievementBanner } from "@/components/AchievementBanner";
@@ -99,10 +100,12 @@ const Index = () => {
                 <PlayCircle className="w-5 h-5 mr-2" />
                 Continue Learning
               </Button>
-              <Button variant="secondary" size="lg" className="text-lg px-8">
-                <Target className="w-5 h-5 mr-2" />
-                View Goals
-              </Button>
+              <Link to="/progress">
+                <Button variant="secondary" size="lg" className="text-lg px-8">
+                  <Target className="w-5 h-5 mr-2" />
+                  View Goals
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -185,18 +188,22 @@ const Index = () => {
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-4 justify-center">
-          <Button variant="learning" size="lg">
-            <Atom className="w-5 h-5 mr-2" />
-            Practice Mode
-          </Button>
+          <Link to="/game/mathematics">
+            <Button variant="learning" size="lg">
+              <Atom className="w-5 h-5 mr-2" />
+              Practice Mode
+            </Button>
+          </Link>
           <Button variant="game" size="lg">
             <Users className="w-5 h-5 mr-2" />
             Study with Friends
           </Button>
-          <Button variant="achievement" size="lg">
-            <TrendingUp className="w-5 h-5 mr-2" />
-            View Analytics
-          </Button>
+          <Link to="/progress">
+            <Button variant="achievement" size="lg">
+              <TrendingUp className="w-5 h-5 mr-2" />
+              View Analytics
+            </Button>
+          </Link>
         </div>
       </main>
     </div>

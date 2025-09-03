@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -73,12 +74,14 @@ export const SubjectCard = ({
             </div>
           </div>
 
-          <Button 
-            className="w-full mt-4" 
-            variant={color === "primary" ? "game" : color === "secondary" ? "learning" : "achievement"}
-          >
-            Continue Learning
-          </Button>
+          <Link to={`/subject/${title.toLowerCase()}`} className="block">
+            <Button 
+              className="w-full mt-4" 
+              variant={color === "primary" ? "game" : color === "secondary" ? "learning" : "achievement"}
+            >
+              Continue Learning
+            </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>
