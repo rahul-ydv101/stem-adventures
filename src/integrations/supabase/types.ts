@@ -47,6 +47,39 @@ export type Database = {
         }
         Relationships: []
       }
+      classes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          subject: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          subject: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          subject?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_coins_transactions: {
         Row: {
           amount: number
@@ -153,15 +186,19 @@ export type Database = {
         Row: {
           avatar_url: string | null
           battery_saver_mode: boolean | null
+          class_code: string | null
           created_at: string | null
           display_name: string | null
           grade_level: string | null
           id: string
+          institution: string | null
           last_activity_date: string | null
           learning_streak: number | null
           phone_number: string | null
           preferred_language: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
           school_name: string | null
+          subjects_teaching: string[] | null
           total_knowledge_coins: number | null
           updated_at: string | null
           user_id: string
@@ -169,15 +206,19 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           battery_saver_mode?: boolean | null
+          class_code?: string | null
           created_at?: string | null
           display_name?: string | null
           grade_level?: string | null
           id?: string
+          institution?: string | null
           last_activity_date?: string | null
           learning_streak?: number | null
           phone_number?: string | null
           preferred_language?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
           school_name?: string | null
+          subjects_teaching?: string[] | null
           total_knowledge_coins?: number | null
           updated_at?: string | null
           user_id: string
@@ -185,15 +226,19 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           battery_saver_mode?: boolean | null
+          class_code?: string | null
           created_at?: string | null
           display_name?: string | null
           grade_level?: string | null
           id?: string
+          institution?: string | null
           last_activity_date?: string | null
           learning_streak?: number | null
           phone_number?: string | null
           preferred_language?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
           school_name?: string | null
+          subjects_teaching?: string[] | null
           total_knowledge_coins?: number | null
           updated_at?: string | null
           user_id?: string
@@ -231,6 +276,7 @@ export type Database = {
       }
       user_progress: {
         Row: {
+          class_id: string | null
           completed_at: string | null
           completion_percentage: number | null
           created_at: string | null
@@ -243,6 +289,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          class_id?: string | null
           completed_at?: string | null
           completion_percentage?: number | null
           created_at?: string | null
@@ -255,6 +302,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          class_id?: string | null
           completed_at?: string | null
           completion_percentage?: number | null
           created_at?: string | null
@@ -266,7 +314,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_progress_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       virtual_lab_sessions: {
         Row: {
@@ -312,7 +368,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_role: "student" | "teacher"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -439,6 +495,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_role: ["student", "teacher"],
+    },
   },
 } as const
