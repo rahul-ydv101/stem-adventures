@@ -1,340 +1,445 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { 
+  Users, 
+  BookOpen, 
+  BarChart3, 
+  Plus, 
+  Settings, 
+  LogOut, 
+  GraduationCap, 
+  Clock, 
+  TrendingUp,
+  FileText,
+  Calendar,
+  Bell
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Users, BookOpen, Plus, LogOut, User, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+interface Profile {
+  display_name: string;
+  institution?: string;
+}
 
 interface Class {
   id: string;
   name: string;
   code: string;
   subject: string;
-  description: string;
-  studentCount: number;
+  description?: string;
+  created_at: string;
 }
 
 const TeacherDashboard = () => {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [newClassName, setNewClassName] = useState("");
-  const [newClassSubject, setNewClassSubject] = useState("");
-  const [newClassDescription, setNewClassDescription] = useState("");
-  const [isCreatingClass, setIsCreatingClass] = useState(false);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [newClass, setNewClass] = useState({
+    name: "",
+    subject: "",
+    description: "",
+  });
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    checkAuth();
+    fetchDashboardData();
   }, []);
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      navigate("/auth");
-      return;
-    }
+  const fetchDashboardData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    setUser(session.user);
-    
-    // Get profile data
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .single();
+      // Fetch profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
 
-    if (profileData?.role !== "teacher") {
-      navigate("/student-dashboard");
-      return;
-    }
+      if (profileError) throw profileError;
+      setProfile(profileData);
 
-    setProfile(profileData);
-    loadClasses(session.user.id);
-  };
+      // Fetch classes
+      const { data: classesData, error: classesError } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("teacher_id", user.id)
+        .order("created_at", { ascending: false });
 
-  const loadClasses = async (teacherId: string) => {
-    const { data, error } = await supabase
-      .from("classes")
-      .select("*")
-      .eq("teacher_id", teacherId);
-
-    if (error) {
+      if (classesError) throw classesError;
+      setClasses(classesData || []);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to load classes",
+        description: error.message,
         variant: "destructive",
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    // For now, set student count to 0 since we don't have enrollment data
-    const classesWithCount = data?.map(cls => ({
-      ...cls,
-      studentCount: 0
-    })) || [];
-
-    setClasses(classesWithCount);
   };
 
-  const generateClassCode = () => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-  };
+  const handleCreateClass = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const createClass = async () => {
-    if (!newClassName || !newClassSubject) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
+      // Generate a unique class code
+      const classCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    setIsCreatingClass(true);
-    
-    const classCode = generateClassCode();
-    
-    const { error } = await supabase
-      .from("classes")
-      .insert({
-        name: newClassName,
-        code: classCode,
-        subject: newClassSubject,
-        description: newClassDescription,
-        teacher_id: user.id,
-      });
+      const { error } = await supabase
+        .from("classes")
+        .insert([
+          {
+            name: newClass.name,
+            subject: newClass.subject,
+            description: newClass.description,
+            code: classCode,
+            teacher_id: user.id,
+          },
+        ]);
 
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create class",
-        variant: "destructive",
-      });
-    } else {
+      if (error) throw error;
+
       toast({
         title: "Success",
         description: `Class created with code: ${classCode}`,
       });
-      
-      // Reset form
-      setNewClassName("");
-      setNewClassSubject("");
-      setNewClassDescription("");
-      
-      // Reload classes
-      loadClasses(user.id);
+
+      setShowCreateClass(false);
+      setNewClass({ name: "", subject: "", description: "" });
+      fetchDashboardData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
-    
-    setIsCreatingClass(false);
   };
 
-  const handleLogout = async () => {
+  const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
 
-  if (!user || !profile) {
+  const subjects = ["Mathematics", "Physics", "Chemistry", "Biology"];
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading your dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       {/* Header */}
-      <header className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              ZenithLearn
-            </h1>
-            <p className="text-sm text-muted-foreground">Teacher Portal</p>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span className="font-medium">{profile.display_name}</span>
+      <header className="bg-card border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-primary">ZenithLearn</h1>
               <Badge variant="secondary">Teacher</Badge>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm">
+                <Bell className="h-4 w-4" />
+              </Button>
+              
+              <Button variant="ghost" size="sm">
+                <Settings className="h-4 w-4" />
+              </Button>
+              
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+              
+              <Avatar className="h-8 w-8">
+                <AvatarFallback>
+                  {profile?.display_name?.charAt(0) || "T"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Welcome, {profile.display_name}! 👩‍🏫
+            Welcome, {profile?.display_name}! 👨‍🏫
           </h2>
           <p className="text-muted-foreground">
             Manage your classes and track student progress
           </p>
-          {profile.institution && (
-            <Badge variant="secondary" className="mt-2">
-              {profile.institution}
-            </Badge>
-          )}
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
-              <BookOpen className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{classes.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Active classes
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {classes.reduce((sum, cls) => sum + cls.studentCount, 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Across all classes
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Progress</CardTitle>
-              <Settings className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">78%</div>
-              <p className="text-xs text-muted-foreground">
-                Student completion rate
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Classes Section */}
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold">My Classes</h3>
-          
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Class
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Class</DialogTitle>
-                <DialogDescription>
-                  Set up a new class for your students
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <Input
-                  placeholder="Class Name"
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                />
-                
-                <Select value={newClassSubject} onValueChange={setNewClassSubject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mathematics">Mathematics</SelectItem>
-                    <SelectItem value="physics">Physics</SelectItem>
-                    <SelectItem value="chemistry">Chemistry</SelectItem>
-                    <SelectItem value="biology">Biology</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <Input
-                  placeholder="Description (Optional)"
-                  value={newClassDescription}
-                  onChange={(e) => setNewClassDescription(e.target.value)}
-                />
-                
-                <Button 
-                  onClick={createClass} 
-                  disabled={isCreatingClass}
-                  className="w-full"
-                >
-                  {isCreatingClass ? "Creating..." : "Create Class"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Classes Grid */}
-        {classes.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Classes Yet</h3>
-              <p className="text-muted-foreground">
-                Create your first class to start teaching
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {classes.map((cls) => (
-              <Card key={cls.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{cls.name}</CardTitle>
-                    <Badge variant="outline">{cls.subject}</Badge>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                      <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Classes</p>
+                      <p className="text-2xl font-bold">{classes.length}</p>
+                    </div>
                   </div>
-                  <CardDescription>{cls.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Class Code:</span>
-                    <Badge variant="secondary" className="font-mono">
-                      {cls.code}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Students:</span>
-                    <span className="font-medium">{cls.studentCount}</span>
-                  </div>
-                  
-                  <Button variant="outline" className="w-full">
-                    <Users className="h-4 w-4 mr-2" />
-                    Manage Class
-                  </Button>
                 </CardContent>
               </Card>
-            ))}
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                      <GraduationCap className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Students</p>
+                      <p className="text-2xl font-bold">0</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                      <BarChart3 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Progress</p>
+                      <p className="text-2xl font-bold">0%</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Classes */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="flex items-center space-x-2">
+                      <BookOpen className="h-5 w-5" />
+                      <span>Your Classes</span>
+                    </CardTitle>
+                    <CardDescription>Manage your classes and students</CardDescription>
+                  </div>
+                  <Dialog open={showCreateClass} onOpenChange={setShowCreateClass}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Class
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Class</DialogTitle>
+                        <DialogDescription>
+                          Create a new class for your students to join
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="class-name">Class Name</Label>
+                          <Input
+                            id="class-name"
+                            placeholder="e.g., Physics 101"
+                            value={newClass.name}
+                            onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="subject">Subject</Label>
+                          <Select
+                            value={newClass.subject}
+                            onValueChange={(value) => setNewClass({...newClass, subject: value})}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a subject" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subjects.map((subject) => (
+                                <SelectItem key={subject} value={subject}>
+                                  {subject}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description (Optional)</Label>
+                          <Textarea
+                            id="description"
+                            placeholder="Brief description of the class"
+                            value={newClass.description}
+                            onChange={(e) => setNewClass({...newClass, description: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCreateClass(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleCreateClass}>
+                          Create Class
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {classes.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {classes.map((classItem) => (
+                      <Card key={classItem.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="font-semibold">{classItem.name}</h3>
+                              <p className="text-sm text-muted-foreground">{classItem.subject}</p>
+                            </div>
+                            <Badge variant="outline">
+                              Code: {classItem.code}
+                            </Badge>
+                          </div>
+                          {classItem.description && (
+                            <p className="text-sm text-muted-foreground mb-3">
+                              {classItem.description}
+                            </p>
+                          )}
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">
+                              0 students
+                            </span>
+                            <Button size="sm" variant="outline">
+                              Manage
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No classes yet</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Create your first class to start teaching students
+                    </p>
+                    <Button onClick={() => setShowCreateClass(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Your First Class
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <TrendingUp className="h-5 w-5" />
+                  <span>Recent Activity</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    No recent activity. Student activities will appear here once they start using your classes.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
+
+          {/* Right Column - Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button className="w-full justify-start" variant="outline">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Assignment
+                </Button>
+                <Button className="w-full justify-start" variant="outline">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Analytics
+                </Button>
+                <Button className="w-full justify-start" variant="outline">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Schedule Lesson
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Institution Info */}
+            {profile?.institution && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Institution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm font-medium">{profile.institution}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Tips */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Teaching Tips</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm font-medium mb-1">💡 Tip #1</p>
+                  <p className="text-xs text-muted-foreground">
+                    Use class codes to help students join your classes easily
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm font-medium mb-1">📊 Tip #2</p>
+                  <p className="text-xs text-muted-foreground">
+                    Monitor student progress to identify areas that need attention
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
